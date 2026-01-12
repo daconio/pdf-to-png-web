@@ -178,16 +178,21 @@ export default function Home() {
   });
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-start py-12 px-4 md:p-24 relative overflow-hidden">
-      <div className="z-10 w-full max-w-4xl flex flex-col items-center gap-8">
+    <main className="flex min-h-screen flex-col items-center justify-start py-12 px-4 md:py-20 md:px-24 relative overflow-hidden">
+      <div className="z-10 w-full max-w-4xl flex flex-col items-center gap-10">
 
-        {/* Header */}
-        <div className="text-center space-y-4">
-          <h1 className="text-5xl md:text-7xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-[--primary] to-[--secondary] neon-text pb-2">
-            PDF Suite
+        {/* Header content with mountaineering theme context */}
+        <div className="text-center space-y-6 animate-in fade-in zoom-in duration-1000">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[rgba(251,146,60,0.1)] border border-[rgba(251,146,60,0.2)] text-[--primary] text-xs font-bold uppercase tracking-widest mb-2">
+            <CheckCircle className="w-3 h-3" />
+            Scaling New Heights in PDF Productivity
+          </div>
+          <h1 className="text-6xl md:text-8xl font-black bg-clip-text text-transparent bg-gradient-to-b from-white via-white to-[--primary] drop-shadow-2xl">
+            PDF SUITE
           </h1>
-          <p className="text-[--foreground] opacity-70 text-lg md:text-xl max-w-2xl mx-auto">
-            Professional PDF & Image processing in your browser.
+          <p className="text-[--foreground] opacity-90 text-lg md:text-2xl max-w-2xl mx-auto font-medium leading-relaxed">
+            Reach the summit of document management. <br className="hidden md:block" />
+            Instant PDF & Image conversion, right in your browser.
           </p>
         </div>
 

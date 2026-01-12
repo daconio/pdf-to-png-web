@@ -3,31 +3,39 @@
 @tailwind utilities;
 
 :root {
-  --background: #0f0f0f;
+  --background: #0d1117;
   --foreground: #ffffff;
-  
-  --primary: #7c3aed; /* Violet/Purple neon */
-  --primary-glow: rgba(124, 58, 237, 0.5);
-  
-  --secondary: #2dd4bf; /* Teal/Cyan neon */
-  --secondary-glow: rgba(45, 212, 191, 0.5);
 
-  --card-bg: rgba(255, 255, 255, 0.05);
-  --card-border: rgba(255, 255, 255, 0.1);
-  --card-hover: rgba(255, 255, 255, 0.1);
+  --primary: #fb923c;
+  /* Warm Orange from sunset */
+  --primary-glow: rgba(251, 146, 60, 0.4);
 
-  --success: #22c55e;
-  --error: #ef4444;
+  --secondary: #38bdf8;
+  /* Sky Blue */
+  --secondary-glow: rgba(56, 189, 248, 0.4);
+
+  --accent: #fcd34d;
+  /* Golden highlight */
+
+  --card-bg: rgba(13, 17, 23, 0.7);
+  --card-border: rgba(255, 255, 255, 0.15);
+  --card-hover: rgba(255, 255, 255, 0.2);
+
+  --success: #10b981;
+  --error: #f43f5e;
 }
 
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
   min-height: 100vh;
-  background-image: 
-    radial-gradient(circle at 10% 20%, rgba(124, 58, 237, 0.15) 0%, transparent 20%),
-    radial-gradient(circle at 90% 80%, rgba(45, 212, 191, 0.15) 0%, transparent 20%);
+  background-image:
+    linear-gradient(to bottom, rgba(13, 17, 23, 0.6), rgba(13, 17, 23, 0.9)),
+    url('/hero-bg.jpg');
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
 }
 
 .glass-panel {
@@ -48,8 +56,15 @@ body {
 }
 
 @keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 5px var(--primary-glow); }
-  50% { box-shadow: 0 0 20px var(--primary-glow); }
+
+  0%,
+  100% {
+    box-shadow: 0 0 5px var(--primary-glow);
+  }
+
+  50% {
+    box-shadow: 0 0 20px var(--primary-glow);
+  }
 }
 
 .animate-pulse-glow {
