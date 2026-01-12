@@ -5,7 +5,9 @@ const getPdfJs = async () => {
     // @ts-ignore
     const pdfjs = await import('pdfjs-dist');
     if (typeof window !== 'undefined' && !pdfjs.GlobalWorkerOptions.workerSrc) {
-        pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+        // Handle basePath for GitHub Pages or other subpath deployments
+        const basePath = (window as any).__NEXT_DATA__?.basePath || '';
+        pdfjs.GlobalWorkerOptions.workerSrc = `${basePath}/pdf.worker.min.mjs`;
     }
     return pdfjs;
 };
