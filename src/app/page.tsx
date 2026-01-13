@@ -22,8 +22,78 @@ interface ProcessedPage {
   error?: string;
 }
 
+
+const translations = {
+  en: {
+    title: "PDF SUITE",
+    subtitle: "Instant PDF & Image conversion, right in your browser.",
+    tagline: "Scaling New Heights in PDF Productivity",
+    modePdf: "PDF to PNG",
+    modePng: "PNG to PDF",
+    autoSave: "Auto-Save Folder",
+    autoSaveDesc: "(Optional - otherwise files download individually)",
+    connectFolder: "Connect to a local folder for automatic saving",
+    connected: "Connected: ",
+    uploadPdfTitle: "Upload PDF to Extract PNGs",
+    uploadPngTitle: "Upload Images to Merge into PDF",
+    dragPdf: "Drag & Drop PDF files here",
+    dragPng: "PNG, JPG, BMP, etc.",
+    processing: "Processing...",
+    dropHere: "Drop it here!",
+    pageRange: "Page Range (Optional)",
+    pageRangePlaceholder: "e.g. 1-5, 8, 11-13",
+    leaveEmpty: "Leave empty to process all pages",
+    startSeparation: "Start Separation",
+    mergePdf: "Merge to PDF & Download",
+    generating: "Generating PDF...",
+    clearImages: "Clear all images",
+    status: "Processing Status",
+    downloadZip: "Download all ZIP",
+    completed: "Completed",
+    addMore: "Add More",
+    switchLang: "한글로 전환",
+    howToUse: "How to Use",
+    howToPdfContent: "Upload a PDF, select pages (optional), and extract high-quality PNGs instantly.",
+    howToPngContent: "Upload multiple images, reorder them via drag & drop, and merge into a single PDF.",
+  },
+  ko: {
+    title: "PDF 스위트",
+    subtitle: "브라우저에서 바로 처리하는 PDF 및 이미지 변환 도구.",
+    tagline: "문서 작업의 새로운 기준",
+    modePdf: "PDF → 이미지",
+    modePng: "이미지 → PDF",
+    autoSave: "자동 저장 폴더",
+    autoSaveDesc: "(선택 사항 - 미설정 시 개별 다운로드)",
+    connectFolder: "자동 저장을 위한 로컬 폴더 연결",
+    connected: "연결됨: ",
+    uploadPdfTitle: "PDF를 업로드하여 이미지 추출",
+    uploadPngTitle: "이미지를 합쳐서 PDF로 변환",
+    dragPdf: "여기에 PDF 파일을 드래그하세요",
+    dragPng: "PNG, JPG, BMP 등 지원",
+    processing: "처리 중...",
+    dropHere: "여기에 놓으세요!",
+    pageRange: "페이지 범위 (선택)",
+    pageRangePlaceholder: "예: 1-5, 8, 11-13",
+    leaveEmpty: "비워두면 전체 페이지 변환",
+    startSeparation: "변환 시작",
+    mergePdf: "PDF 병합 및 다운로드",
+    generating: "PDF 생성 중...",
+    clearImages: "이미지 전체 삭제",
+    status: "처리 상태",
+    downloadZip: "전체 ZIP 다운로드",
+    completed: "완료됨",
+    addMore: "추가하기",
+    switchLang: "Switch to English",
+    howToUse: "사용 방법",
+    howToPdfContent: "PDF를 업로드하고 원하는 페이지를 선택해 고화질 이미지로 변환하세요.",
+    howToPngContent: "여러 이미지를 업로드하고 드래그 앤 드롭으로 순서를 바꿔 PDF로 병합하세요.",
+  }
+};
+
 export default function Home() {
   const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
+  const [lang, setLang] = useState<'en' | 'ko'>('en');
+  const t = translations[lang];
   const [mode, setMode] = useState<'pdf2png' | 'png2pdf'>('pdf2png');
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [imageFiles, setImageFiles] = useState<File[]>([]);
@@ -275,18 +345,41 @@ export default function Home() {
     >
       <div className="z-10 w-full max-w-4xl flex flex-col items-center gap-10">
 
+        {/* Language Toggle */}
+        <div className="absolute top-4 right-4 md:top-8 md:right-8 z-50">
+          <button
+            onClick={() => setLang(prev => prev === 'en' ? 'ko' : 'en')}
+            className="group tooltip-trigger relative bg-white border-[3px] border-black px-4 py-2 font-bold shadow-[4px_4px_0px_0px_#000] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_0px_#000] transition-all hover-spring"
+          >
+            {lang === 'en' ? 'KO' : 'EN'}
+            <span className="tooltip-content absolute top-full right-0 mt-2 px-3 py-1 bg-black text-white text-xs whitespace-nowrap font-bold shadow-[2px_2px_0px_0px_rgba(255,255,255,0.5)] z-50">
+              {t.switchLang}
+            </span>
+          </button>
+        </div>
+
         {/* Header content with mountaineering theme context */}
-        <div className="text-center space-y-6">
+        <div className="text-center space-y-6 animate-slide-up">
           <div className="inline-flex items-center gap-2 px-3 py-1 bg-[--secondary] border-[3px] border-black text-black text-xs font-bold uppercase tracking-widest mb-2 shadow-[4px_4px_0px_0px_#000]">
             <CheckCircle className="w-3 h-3" />
-            Scaling New Heights in PDF Productivity
+            {t.tagline}
           </div>
           <h1 className="text-6xl md:text-8xl font-black text-black drop-shadow-[5px_5px_0px_rgba(0,0,0,0.2)]">
-            PDF SUITE
+            {t.title}
           </h1>
           <p className="text-[--foreground] text-lg md:text-2xl max-w-2xl mx-auto font-bold leading-relaxed border-b-4 border-[--primary] inline-block pb-2">
-            Instant PDF & Image conversion, right in your browser.
+            {t.subtitle}
           </p>
+
+          {/* Detailed Explanation */}
+          <div className="max-w-xl mx-auto mt-4 p-4 bg-white/50 border-[2px] border-black border-dashed">
+            <h3 className="text-sm font-black uppercase mb-1 flex items-center justify-center gap-2">
+              <AlertCircle className="w-4 h-4" /> {t.howToUse}
+            </h3>
+            <p className="text-sm font-medium opacity-80">
+              {mode === 'pdf2png' ? t.howToPdfContent : t.howToPngContent}
+            </p>
+          </div>
         </div>
 
         {/* Mode Switcher */}
@@ -301,17 +394,17 @@ export default function Home() {
               setProcessedBlobs([]);
               setPageRange('');
             }}
-            className={`flex-1 py-3 px-6 transition-all duration-200 flex items-center justify-center gap-2 font-bold border-[3px] border-black ${mode === 'pdf2png' ? 'bg-[--primary] text-white shadow-[2px_2px_0px_0px_#000] translate-x-[-1px] translate-y-[-1px]' : 'bg-gray-100 text-black hover:bg-gray-200'}`}
+            className={`flex-1 py-3 px-6 transition-all duration-200 flex items-center justify-center gap-2 font-bold border-[3px] border-black hover-spring ${mode === 'pdf2png' ? 'bg-[--primary] text-white shadow-[2px_2px_0px_0px_#000] translate-x-[-1px] translate-y-[-1px]' : 'bg-gray-100 text-black hover:bg-gray-200'}`}
           >
             <FileText className="w-5 h-5" />
-            PDF to PNG
+            {t.modePdf}
           </button>
           <button
             onClick={() => { setMode('png2pdf'); setPages([]); setPdfFile(null); setImageFiles([]); setUploadError(null); setProcessedBlobs([]); }}
-            className={`flex-1 py-3 px-6 transition-all duration-200 flex items-center justify-center gap-2 font-bold border-[3px] border-black ${mode === 'png2pdf' ? 'bg-[--primary] text-white shadow-[2px_2px_0px_0px_#000] translate-x-[-1px] translate-y-[-1px]' : 'bg-gray-100 text-black hover:bg-gray-200'}`}
+            className={`flex-1 py-3 px-6 transition-all duration-200 flex items-center justify-center gap-2 font-bold border-[3px] border-black hover-spring ${mode === 'png2pdf' ? 'bg-[--primary] text-white shadow-[2px_2px_0px_0px_#000] translate-x-[-1px] translate-y-[-1px]' : 'bg-gray-100 text-black hover:bg-gray-200'}`}
           >
             <ImageIcon className="w-5 h-5" />
-            PNG to PDF
+            {t.modePng}
           </button>
         </div>
 
@@ -320,9 +413,9 @@ export default function Home() {
           <div className="w-full max-w-2xl flex flex-col gap-2">
             <label className="text-sm font-medium text-[--foreground] opacity-90 flex items-center gap-2">
               <FolderInput className="w-4 h-4 text-[--secondary]" />
-              Auto-Save Folder
+              {t.autoSave}
               <span className="text-xs font-normal opacity-70 ml-1">
-                {dirHandle ? '' : '(Optional - otherwise files download individually)'}
+                {dirHandle ? '' : t.autoSaveDesc}
               </span>
             </label>
             <button
@@ -345,7 +438,7 @@ export default function Home() {
                 ) : (
                   <>
                     <Folder className="w-5 h-5 opacity-100" />
-                    <span className="opacity-100">Connect to a local folder for automatic saving</span>
+                    <span className="opacity-100">{t.connectFolder}</span>
                   </>
                 )}
               </span>
@@ -402,12 +495,12 @@ export default function Home() {
 
                   <div className="space-y-3">
                     <p className="text-2xl font-bold tracking-tight">
-                      {isProcessing ? 'Processing...' : isDragActive ? 'Drop it here!' : mode === 'pdf2png' ? 'Upload PDF to Extract PNGs' : 'Upload Images to Merge into PDF'}
+                      {isProcessing ? t.processing : isDragActive ? t.dropHere : mode === 'pdf2png' ? t.uploadPdfTitle : t.uploadPngTitle}
                     </p>
                     <p className="text-base text-[--foreground] opacity-80 font-medium">
                       {mode === 'pdf2png'
-                        ? 'Drag & Drop PDF files here'
-                        : 'PNG, JPG, BMP, etc.'
+                        ? t.dragPdf
+                        : t.dragPng
                       }
                     </p>
                   </div>
@@ -427,25 +520,25 @@ export default function Home() {
 
                       {!pages.length && (
                         <div className="flex flex-col gap-2 text-left">
-                          <label className="text-sm font-bold border-b-2 border-black inline-block w-fit">Page Range (Optional)</label>
+                          <label className="text-sm font-bold border-b-2 border-black inline-block w-fit">{t.pageRange}</label>
                           <input
                             type="text"
-                            placeholder="e.g. 1-5, 8, 11-13"
+                            placeholder={t.pageRangePlaceholder}
                             value={pageRange}
                             onChange={(e) => setPageRange(e.target.value)}
                             className="w-full px-4 py-3 bg-white border-[3px] border-black focus:shadow-[4px_4px_0px_0px_#000] focus:translate-x-[-2px] focus:translate-y-[-2px] outline-none transition-all font-mono placeholder:text-gray-400"
                           />
-                          <p className="text-xs font-bold text-gray-500">Leave empty to process all pages</p>
+                          <p className="text-xs font-bold text-gray-500">{t.leaveEmpty}</p>
                         </div>
                       )}
 
                       {!pages.length && (
                         <button
                           onClick={(e) => { e.stopPropagation(); handleStartPdfConversion(); }}
-                          className="w-full py-4 bg-[--primary] border-[3px] border-black text-white font-black text-lg uppercase tracking-wider shadow-[6px_6px_0px_0px_#000] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[4px_4px_0px_0px_#000] active:translate-x-[6px] active:translate-y-[6px] active:shadow-none transition-all flex items-center justify-center gap-2"
+                          className="w-full py-4 bg-[--primary] border-[3px] border-black text-white font-black text-lg uppercase tracking-wider shadow-[6px_6px_0px_0px_#000] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[4px_4px_0px_0px_#000] active:translate-x-[6px] active:translate-y-[6px] active:shadow-none transition-all flex items-center justify-center gap-2 hover-spring"
                         >
                           <Play className="w-5 h-5" fill="currentColor" />
-                          Start Separation
+                          {t.startSeparation}
                         </button>
                       )}
                     </div>
@@ -468,15 +561,15 @@ export default function Home() {
               <button
                 onClick={handleConvertImagesToPdf}
                 disabled={isProcessing}
-                className="w-full py-4 bg-[--primary] border-[3px] border-black text-white font-black text-xl uppercase tracking-wider shadow-[6px_6px_0px_0px_#000] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[4px_4px_0px_0px_#000] active:translate-x-[6px] active:translate-y-[6px] active:shadow-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full py-4 bg-[--primary] border-[3px] border-black text-white font-black text-xl uppercase tracking-wider shadow-[6px_6px_0px_0px_#000] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[4px_4px_0px_0px_#000] active:translate-x-[6px] active:translate-y-[6px] active:shadow-none transition-all disabled:opacity-50 disabled:cursor-not-allowed hover-spring"
               >
-                {isProcessing ? 'Generating PDF...' : 'Merge to PDF & Download'}
+                {isProcessing ? t.generating : t.mergePdf}
               </button>
               <button
                 onClick={() => setImageFiles([])}
-                className="text-sm opacity-50 hover:opacity-100 transition-opacity"
+                className="text-sm opacity-50 hover:opacity-100 transition-opacity font-bold"
               >
-                Clear all images
+                {t.clearImages}
               </button>
             </div>
           )}
@@ -487,7 +580,7 @@ export default function Home() {
               <div className="flex items-center justify-between px-2">
                 <h2 className="text-xl font-bold flex items-center gap-2">
                   <FileText className="w-5 h-5 text-[--secondary]" />
-                  Processing Status
+                  {t.status}
                 </h2>
                 <div className="flex items-center gap-4">
                   {processedBlobs.length > 0 && (
@@ -497,11 +590,11 @@ export default function Home() {
                       className="flex items-center gap-2 px-4 py-2 bg-white border-[2px] border-black text-black text-sm font-bold shadow-[3px_3px_0px_0px_#000] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0px_0px_#000] active:shadow-none active:translate-x-[3px] active:translate-y-[3px] transition-all"
                     >
                       <Download className="w-4 h-4" />
-                      Download all ZIP
+                      {t.downloadZip}
                     </button>
                   )}
                   <span className="text-sm opacity-50">
-                    {pages.filter(p => p.status === 'completed').length} / {pages.length} Completed
+                    {pages.filter(p => p.status === 'completed').length} / {pages.length} {t.completed}
                   </span>
                 </div>
               </div>
@@ -565,10 +658,10 @@ export default function Home() {
                         const input = document.querySelector('input[type="file"]') as HTMLInputElement;
                         if (input) input.click();
                       }}
-                      className="aspect-square bg-white border-[3px] border-black shadow-[4px_4px_0px_0px_#000] flex flex-col items-center justify-center cursor-pointer transition-all hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_0px_#000] group"
+                      className="aspect-square bg-white border-[3px] border-black shadow-[4px_4px_0px_0px_#000] flex flex-col items-center justify-center cursor-pointer transition-all hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_0px_#000] group animate-pop"
                     >
                       <Upload className="w-8 h-8 text-black opacity-50 group-hover:opacity-100 transition-opacity" />
-                      <span className="text-xs font-bold mt-2 text-black opacity-50 group-hover:opacity-100">ADD MORE</span>
+                      <span className="text-xs font-bold mt-2 text-black opacity-50 group-hover:opacity-100">{t.addMore}</span>
                     </div>
                   </div>
                 </SortableContext>
