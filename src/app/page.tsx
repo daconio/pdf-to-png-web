@@ -20,6 +20,7 @@ interface ProcessedPage {
 }
 
 export default function Home() {
+  const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
   const [mode, setMode] = useState<'pdf2png' | 'png2pdf'>('pdf2png');
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [imageFiles, setImageFiles] = useState<File[]>([]);
@@ -178,7 +179,15 @@ export default function Home() {
   });
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-start py-12 px-4 md:py-20 md:px-24 relative overflow-hidden">
+    <main
+      className="flex min-h-screen flex-col items-center justify-start py-12 px-4 md:py-20 md:px-24 relative overflow-hidden"
+      style={{
+        backgroundImage: `linear-gradient(to bottom, rgba(13, 17, 23, 0.6), rgba(13, 17, 23, 0.9)), url('${basePath}/hero-bg.jpg')`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundAttachment: 'fixed'
+      }}
+    >
       <div className="z-10 w-full max-w-4xl flex flex-col items-center gap-10">
 
         {/* Header content with mountaineering theme context */}
