@@ -2,8 +2,8 @@
 
 import { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { loadPDF, renderPageToBlob, imagesToPDF } from '@/lib/pdf-processor';
-import { Upload, FileText, CheckCircle, Loader2, AlertCircle, Image as ImageIcon, FolderInput, Folder, ChevronRight } from 'lucide-react';
+import { loadPDF, renderPageToBlob, imagesToPDF, createZipBlob } from '@/lib/pdf-processor';
+import { Upload, FileText, CheckCircle, Loader2, AlertCircle, Image as ImageIcon, FolderInput, Folder, ChevronRight, Download } from 'lucide-react';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 
 declare global {
@@ -29,6 +29,7 @@ export default function Home() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [outputDir, setOutputDir] = useState(''); // Keep for fallback display
   const [dirHandle, setDirHandle] = useState<FileSystemDirectoryHandle | null>(null);
+  const [processedBlobs, setProcessedBlobs] = useState<{ filename: string, blob: Blob }[]>([]);
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) return;
@@ -111,6 +112,26 @@ export default function Home() {
     }
   };
 
+  const handleDownloadZip = async () => {
+    if (processedBlobs.length === 0) return;
+    setIsProcessing(true);
+    try {
+      const zipBlob = await createZipBlob(processedBlobs);
+      const url = URL.createObjectURL(zipBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      const baseName = pdfFile ? pdfFile.name.replace(/\.pdf$/i, '') : 'converted_pages';
+      a.download = `${baseName}_all_pages.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      console.error(err);
+      setUploadError('Failed to create ZIP: ' + err.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const processPage = async (pdf: PDFDocumentProxy, pageNumber: number, originalFilename: string) => {
     try {
       updatePageStatus(pageNumber, 'processing');
@@ -132,6 +153,7 @@ export default function Home() {
           await writable.write(blob);
           await writable.close();
 
+          setProcessedBlobs(prev => [...prev, { filename, blob }]);
           updatePageStatus(pageNumber, 'completed', filename);
         } catch (err: any) {
           console.error('File System API Error:', err);
@@ -146,6 +168,7 @@ export default function Home() {
         a.download = filename;
         a.click();
         URL.revokeObjectURL(url);
+        setProcessedBlobs(prev => [...prev, { filename, blob }]);
         updatePageStatus(pageNumber, 'completed', filename);
       }
 
@@ -208,14 +231,14 @@ export default function Home() {
         {/* Mode Switcher */}
         <div className="flex p-1 rounded-2xl glass-panel border-[--card-border] w-full max-w-md">
           <button
-            onClick={() => { setMode('pdf2png'); setPages([]); setPdfFile(null); setImageFiles([]); setUploadError(null); }}
+            onClick={() => { setMode('pdf2png'); setPages([]); setPdfFile(null); setImageFiles([]); setUploadError(null); setProcessedBlobs([]); }}
             className={`flex-1 py-3 px-6 rounded-xl transition-all duration-300 flex items-center justify-center gap-2 ${mode === 'pdf2png' ? 'bg-gradient-to-r from-[--primary] to-[--secondary] text-white shadow-lg font-semibold' : 'hover:bg-[rgba(255,255,255,0.05)] opacity-80'}`}
           >
             <FileText className="w-5 h-5" />
             PDF to PNG
           </button>
           <button
-            onClick={() => { setMode('png2pdf'); setPages([]); setPdfFile(null); setImageFiles([]); setUploadError(null); }}
+            onClick={() => { setMode('png2pdf'); setPages([]); setPdfFile(null); setImageFiles([]); setUploadError(null); setProcessedBlobs([]); }}
             className={`flex-1 py-3 px-6 rounded-xl transition-all duration-300 flex items-center justify-center gap-2 ${mode === 'png2pdf' ? 'bg-gradient-to-r from-[--primary] to-[--secondary] text-white shadow-lg font-semibold' : 'hover:bg-[rgba(255,255,255,0.05)] opacity-80'}`}
           >
             <ImageIcon className="w-5 h-5" />
@@ -334,9 +357,21 @@ export default function Home() {
                   <FileText className="w-5 h-5 text-[--secondary]" />
                   Processing Status
                 </h2>
-                <span className="text-sm opacity-50">
-                  {pages.filter(p => p.status === 'completed').length} / {pages.length} Completed
-                </span>
+                <div className="flex items-center gap-4">
+                  {processedBlobs.length > 0 && (
+                    <button
+                      onClick={handleDownloadZip}
+                      disabled={isProcessing}
+                      className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[rgba(251,146,60,0.1)] border border-[rgba(251,146,60,0.2)] text-[--primary] text-sm font-bold hover:bg-[rgba(251,146,60,0.2)] transition-all disabled:opacity-50"
+                    >
+                      <Download className="w-4 h-4" />
+                      Download all ZIP
+                    </button>
+                  )}
+                  <span className="text-sm opacity-50">
+                    {pages.filter(p => p.status === 'completed').length} / {pages.length} Completed
+                  </span>
+                </div>
               </div>
 
               <div className="max-h-[400px] overflow-y-auto pr-2 space-y-3 custom-scrollbar">

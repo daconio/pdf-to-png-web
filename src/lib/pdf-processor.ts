@@ -103,3 +103,15 @@ export const imagesToPDF = async (files: File[]): Promise<Blob> => {
     return doc.output('blob');
 };
 
+export const createZipBlob = async (pages: { filename: string, blob: Blob }[]): Promise<Blob> => {
+    // @ts-ignore
+    const JSZip = (await import('jszip')).default;
+    const zip = new JSZip();
+
+    pages.forEach(({ filename, blob }) => {
+        zip.file(filename, blob);
+    });
+
+    return await zip.generateAsync({ type: 'blob' });
+};
+
