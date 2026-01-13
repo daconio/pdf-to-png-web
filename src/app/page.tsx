@@ -3,8 +3,11 @@
 import { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { loadPDF, renderPageToBlob, imagesToPDF, createZipBlob } from '@/lib/pdf-processor';
-import { Upload, FileText, CheckCircle, Loader2, AlertCircle, Image as ImageIcon, FolderInput, Folder, ChevronRight, Download } from 'lucide-react';
+import { Upload, FileText, CheckCircle, Loader2, AlertCircle, Image as ImageIcon, FolderInput, Folder, ChevronRight, Download, Play, X, GripVertical } from 'lucide-react';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, rectSortingStrategy } from '@dnd-kit/sortable';
+import { SortableItem } from './components/SortableItem';
 
 declare global {
   interface Window {
@@ -30,6 +33,14 @@ export default function Home() {
   const [outputDir, setOutputDir] = useState(''); // Keep for fallback display
   const [dirHandle, setDirHandle] = useState<FileSystemDirectoryHandle | null>(null);
   const [processedBlobs, setProcessedBlobs] = useState<{ filename: string, blob: Blob }[]>([]);
+  const [pageRange, setPageRange] = useState('');
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) return;
@@ -44,28 +55,7 @@ export default function Home() {
       setPdfFile(selectedFile);
       setUploadError(null);
       setPages([]);
-      setIsProcessing(true);
-
-      try {
-        const pdf = await loadPDF(selectedFile);
-        const numPages = pdf.numPages;
-
-        // Initialize pages state
-        const initialPages: ProcessedPage[] = Array.from({ length: numPages }, (_, i) => ({
-          pageNumber: i + 1,
-          status: 'pending'
-        }));
-        setPages(initialPages);
-
-        for (let i = 1; i <= numPages; i++) {
-          await processPage(pdf, i, selectedFile.name);
-        }
-      } catch (err) {
-        console.error(err);
-        setUploadError('Failed to load PDF. Please try again.');
-      } finally {
-        setIsProcessing(false);
-      }
+      setProcessedBlobs([]);
     } else {
       // PNG to PDF
       const validImages = acceptedFiles.filter(f => f.type.startsWith('image/'));
@@ -76,7 +66,80 @@ export default function Home() {
       setImageFiles(prev => [...prev, ...validImages]);
       setUploadError(null);
     }
-  }, [mode, dirHandle]);
+  }, [mode]); // Removed dirHandle from deps to avoid re-triggering, simplified logic
+
+  const parsePageRange = (rangeStr: string, maxPage: number): number[] => {
+    if (!rangeStr.trim()) {
+      return Array.from({ length: maxPage }, (_, i) => i + 1);
+    }
+
+    const pages = new Set<number>();
+    const parts = rangeStr.split(',');
+
+    for (const part of parts) {
+      if (part.includes('-')) {
+        const [start, end] = part.split('-').map(s => parseInt(s.trim()));
+        if (!isNaN(start) && !isNaN(end)) {
+          const s = Math.max(1, Math.min(start, maxPage));
+          const e = Math.max(1, Math.min(end, maxPage));
+          for (let i = Math.min(s, e); i <= Math.max(s, e); i++) {
+            pages.add(i);
+          }
+        }
+      } else {
+        const p = parseInt(part.trim());
+        if (!isNaN(p) && p >= 1 && p <= maxPage) {
+          pages.add(p);
+        }
+      }
+    }
+    return Array.from(pages).sort((a, b) => a - b);
+  };
+
+  const handleStartPdfConversion = async () => {
+    if (!pdfFile) return;
+    setIsProcessing(true);
+    setUploadError(null);
+    setPages([]);
+    setProcessedBlobs([]);
+
+    try {
+      const pdf = await loadPDF(pdfFile);
+      const numPages = pdf.numPages;
+      const pagesToProcess = parsePageRange(pageRange, numPages);
+
+      if (pagesToProcess.length === 0) {
+        throw new Error('No valid pages selected to process.');
+      }
+
+      const initialPages: ProcessedPage[] = pagesToProcess.map(p => ({
+        pageNumber: p,
+        status: 'pending'
+      }));
+      setPages(initialPages);
+
+      for (const pageNum of pagesToProcess) {
+        await processPage(pdf, pageNum, pdfFile.name);
+      }
+    } catch (err: any) {
+      console.error(err);
+      setUploadError(err.message || 'Failed to process PDF.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (active.id !== over?.id) {
+      setImageFiles((items) => {
+        const oldIndex = items.findIndex(item => item.name === active.id);
+        const newIndex = items.findIndex(item => item.name === over?.id);
+        return arrayMove(items, oldIndex, newIndex);
+      });
+    }
+  };
 
   const handleConvertImagesToPdf = async () => {
     if (imageFiles.length === 0) return;
@@ -198,7 +261,8 @@ export default function Home() {
     onDrop,
     accept: mode === 'pdf2png' ? { 'application/pdf': ['.pdf'] } : { 'image/*': ['.png', '.jpg', '.jpeg'] },
     multiple: mode === 'png2pdf',
-    disabled: isProcessing
+    disabled: isProcessing,
+    noClick: (mode === 'pdf2png' && !!pdfFile) || (mode === 'png2pdf' && imageFiles.length > 0)
   });
 
   return (
@@ -231,7 +295,15 @@ export default function Home() {
         {/* Mode Switcher */}
         <div className="flex p-1 rounded-2xl glass-panel border-[--card-border] w-full max-w-md">
           <button
-            onClick={() => { setMode('pdf2png'); setPages([]); setPdfFile(null); setImageFiles([]); setUploadError(null); setProcessedBlobs([]); }}
+            onClick={() => {
+              setMode('pdf2png');
+              setPages([]);
+              setPdfFile(null);
+              setImageFiles([]);
+              setUploadError(null);
+              setProcessedBlobs([]);
+              setPageRange('');
+            }}
             className={`flex-1 py-3 px-6 rounded-xl transition-all duration-300 flex items-center justify-center gap-2 ${mode === 'pdf2png' ? 'bg-gradient-to-r from-[--primary] to-[--secondary] text-white shadow-lg font-semibold' : 'hover:bg-[rgba(255,255,255,0.05)] opacity-80'}`}
           >
             <FileText className="w-5 h-5" />
@@ -289,37 +361,100 @@ export default function Home() {
             {...getRootProps()}
             className={`
               w-full max-w-2xl min-h-[300px] flex flex-col items-center justify-center 
-              rounded-3xl cursor-pointer transition-all duration-300 border-2 border-dashed
-              glass-panel
+              rounded-3xl transition-all duration-300 border-2 border-dashed
+              glass-panel relative
               ${isDragActive ? 'border-[--primary] scale-[1.02] shadow-[0_0_30px_var(--primary-glow)]' : 'border-[--card-border] hover:border-[--secondary] hover:shadow-[0_0_20px_var(--secondary-glow)]'}
               ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}
+              ${(mode === 'pdf2png' && !!pdfFile) || (mode === 'png2pdf' && imageFiles.length > 0) ? 'cursor-default' : 'cursor-pointer'}
             `}
           >
             <input {...getInputProps()} />
-            <div className="flex flex-col items-center gap-6 p-8 text-center">
-              <div className={`
-                  p-6 rounded-full bg-gradient-to-br from-[--primary] to-[--secondary]
-                  ${isDragActive || isProcessing ? 'animate-pulse-glow' : ''}
-                  shadow-lg
-              `}>
-                {isProcessing ? (
-                  <Loader2 className="w-10 h-10 text-white animate-spin" />
-                ) : (
-                  <Upload className="w-10 h-10 text-white" />
-                )}
-              </div>
 
-              <div className="space-y-3">
-                <p className="text-2xl font-bold tracking-tight">
-                  {isProcessing ? 'Processing...' : isDragActive ? 'Drop it here!' : mode === 'pdf2png' ? 'Upload PDF to Extract PNGs' : 'Upload Images to Merge into PDF'}
-                </p>
-                <p className="text-base text-[--foreground] opacity-80 font-medium">
-                  {mode === 'pdf2png'
-                    ? (pdfFile ? `Selected: ${pdfFile.name}` : 'Drag & Drop PDF files here')
-                    : (imageFiles.length > 0 ? `${imageFiles.length} images selected` : 'PNG, JPG, BMP, etc.')
-                  }
-                </p>
-              </div>
+            {/* Clear Button */}
+            {((mode === 'pdf2png' && pdfFile) || (mode === 'png2pdf' && imageFiles.length > 0)) && !isProcessing && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setPdfFile(null);
+                  setImageFiles([]);
+                  setPages([]);
+                  setProcessedBlobs([]);
+                  setPageRange('');
+                }}
+                className="absolute top-4 right-4 p-2 rounded-full hover:bg-white/10 transition-colors z-20"
+                title="Clear selection"
+              >
+                <X className="w-5 h-5 text-[--foreground]" />
+              </button>
+            )}
+
+            <div className="flex flex-col items-center gap-6 p-8 text-center w-full">
+              {!pdfFile && imageFiles.length === 0 ? (
+                <>
+                  <div className={`
+                        p-6 rounded-full bg-gradient-to-br from-[--primary] to-[--secondary]
+                        ${isDragActive || isProcessing ? 'animate-pulse-glow' : ''}
+                        shadow-lg
+                    `}>
+                    {isProcessing ? (
+                      <Loader2 className="w-10 h-10 text-white animate-spin" />
+                    ) : (
+                      <Upload className="w-10 h-10 text-white" />
+                    )}
+                  </div>
+
+                  <div className="space-y-3">
+                    <p className="text-2xl font-bold tracking-tight">
+                      {isProcessing ? 'Processing...' : isDragActive ? 'Drop it here!' : mode === 'pdf2png' ? 'Upload PDF to Extract PNGs' : 'Upload Images to Merge into PDF'}
+                    </p>
+                    <p className="text-base text-[--foreground] opacity-80 font-medium">
+                      {mode === 'pdf2png'
+                        ? 'Drag & Drop PDF files here'
+                        : 'PNG, JPG, BMP, etc.'
+                      }
+                    </p>
+                  </div>
+                </>
+              ) : (
+                /* Processing / Selection UI */
+                <div className="w-full flex flex-col items-center gap-6">
+                  {mode === 'pdf2png' && pdfFile && (
+                    <div className="w-full max-w-md space-y-4">
+                      <div className="flex items-center justify-center gap-3 p-4 rounded-xl bg-white/5 border border-white/10">
+                        <FileText className="w-8 h-8 text-[--primary]" />
+                        <div className="text-left">
+                          <p className="font-bold truncate max-w-[200px]">{pdfFile.name}</p>
+                          <p className="text-xs opacity-60">{(pdfFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                        </div>
+                      </div>
+
+                      {!pages.length && (
+                        <div className="flex flex-col gap-2 text-left">
+                          <label className="text-sm font-medium opacity-80">Page Range (Optional)</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. 1-5, 8, 11-13"
+                            value={pageRange}
+                            onChange={(e) => setPageRange(e.target.value)}
+                            className="w-full px-4 py-3 rounded-xl bg-black/20 border border-white/10 focus:border-[--primary] focus:ring-1 focus:ring-[--primary] outline-none transition-all"
+                          />
+                          <p className="text-xs opacity-50">Leave empty to process all pages</p>
+                        </div>
+                      )}
+
+                      {!pages.length && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleStartPdfConversion(); }}
+                          className="w-full py-4 rounded-xl bg-gradient-to-r from-[--primary] to-[--secondary] text-white font-bold text-lg shadow-lg hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-2"
+                        >
+                          <Play className="w-5 h-5" fill="currentColor" />
+                          Start Separation
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
@@ -402,25 +537,45 @@ export default function Home() {
             </div>
           )}
 
-          {/* Image Previews for PNG to PDF */}
+          {/* Image Previews for PNG to PDF with Drag & Drop */}
           {mode === 'png2pdf' && imageFiles.length > 0 && (
             <div className="w-full max-w-2xl space-y-4">
-              <h2 className="text-xl font-bold px-2">Selected Images</h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {imageFiles.map((file, i) => (
-                  <div key={i} className="aspect-square rounded-xl glass-panel border-[--card-border] p-2 relative group overflow-hidden">
-                    <img
-                      src={URL.createObjectURL(file)}
-                      alt={`Preview ${i}`}
-                      className="w-full h-full object-cover rounded-lg"
-                      onLoad={(e) => URL.revokeObjectURL((e.target as any).src)}
-                    />
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                      <p className="text-xs text-white truncate px-2">{file.name}</p>
+              <div className="flex items-center justify-between px-2">
+                <h2 className="text-xl font-bold">Selected Images ({imageFiles.length})</h2>
+                <p className="text-xs opacity-50 flex items-center gap-1">
+                  <GripVertical className="w-3 h-3" />
+                  Drag to reorder
+                </p>
+              </div>
+
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext
+                  items={imageFiles.map(f => f.name)}
+                  strategy={rectSortingStrategy}
+                >
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {imageFiles.map((file) => (
+                      <SortableItem key={file.name} id={file.name} file={file} />
+                    ))}
+
+                    {/* Add More Button */}
+                    <div
+                      onClick={(_) => {
+                        const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+                        if (input) input.click();
+                      }}
+                      className="aspect-square rounded-xl border-2 border-dashed border-[--card-border] hover:border-[--primary] flex flex-col items-center justify-center cursor-pointer transition-colors group"
+                    >
+                      <Upload className="w-6 h-6 opacity-50 group-hover:opacity-100 group-hover:text-[--primary] transition-all" />
+                      <span className="text-xs mt-2 opacity-50 group-hover:opacity-100">Add More</span>
                     </div>
                   </div>
-                ))}
-              </div>
+                </SortableContext>
+              </DndContext>
             </div>
           )}
         </div>
