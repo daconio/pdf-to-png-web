@@ -3,9 +3,9 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { loadPDF, renderPageToBlob, imagesToPDF, createZipBlob } from '@/lib/pdf-processor';
-import { Upload, FileText, CheckCircle, Loader2, AlertCircle, Image as ImageIcon, FolderInput, Folder, ChevronRight, Download, Play, X, GripVertical } from 'lucide-react';
-import type { PDFDocumentProxy } from 'pdfjs-dist';
+
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
+import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, rectSortingStrategy } from '@dnd-kit/sortable';
 import { SortableItem } from './components/SortableItem';
 
@@ -409,8 +409,7 @@ export default function Home() {
         {/* Header content with mountaineering theme context */}
         <div className="text-center space-y-6 animate-slide-up">
           <div className="inline-flex items-center gap-2 px-3 py-1 bg-[--secondary] border-[3px] border-black text-black text-xs font-bold uppercase tracking-widest mb-2 shadow-[4px_4px_0px_0px_#000]">
-            <CheckCircle className="w-3 h-3" />
-            {t.tagline}
+            ✅ {t.tagline}
           </div>
           <h1 className="text-6xl md:text-8xl font-black text-black drop-shadow-[5px_5px_0px_rgba(0,0,0,0.2)]">
             {t.title}
@@ -422,7 +421,7 @@ export default function Home() {
           {/* Detailed Explanation */}
           <div className="max-w-xl mx-auto mt-4 p-4 bg-white/50 border-[2px] border-black border-dashed">
             <h3 className="text-sm font-black uppercase mb-1 flex items-center justify-center gap-2">
-              <AlertCircle className="w-4 h-4" /> {t.howToUse}
+              ℹ️ {t.howToUse}
             </h3>
             <p className="text-sm font-medium opacity-80">
               {mode === 'pdf2png' ? t.howToPdfContent : t.howToPngContent}
@@ -444,15 +443,13 @@ export default function Home() {
             }}
             className={`flex-1 py-3 px-6 transition-all duration-200 flex items-center justify-center gap-2 font-bold border-[3px] border-black hover-spring ${mode === 'pdf2png' ? 'bg-[--primary] text-white shadow-[2px_2px_0px_0px_#000] translate-x-[-1px] translate-y-[-1px]' : 'bg-gray-100 text-black hover:bg-gray-200'}`}
           >
-            <FileText className="w-5 h-5" />
-            {t.modePdf}
+            📄 {t.modePdf}
           </button>
           <button
             onClick={() => { setMode('png2pdf'); setPages([]); setPdfFile(null); setImageFiles([]); setUploadError(null); setProcessedBlobs([]); }}
             className={`flex-1 py-3 px-6 transition-all duration-200 flex items-center justify-center gap-2 font-bold border-[3px] border-black hover-spring ${mode === 'png2pdf' ? 'bg-[--primary] text-white shadow-[2px_2px_0px_0px_#000] translate-x-[-1px] translate-y-[-1px]' : 'bg-gray-100 text-black hover:bg-gray-200'}`}
           >
-            <ImageIcon className="w-5 h-5" />
-            {t.modePng}
+            🖼️ {t.modePng}
           </button>
         </div>
 
@@ -460,8 +457,7 @@ export default function Home() {
           {/* Folder Selection (Native) */}
           <div className="w-full max-w-2xl flex flex-col gap-2">
             <label className="text-sm font-medium text-[--foreground] opacity-90 flex items-center gap-2">
-              <FolderInput className="w-4 h-4 text-[--secondary]" />
-              {t.autoSave}
+              📂 {t.autoSave}
               <span className="text-xs font-normal opacity-70 ml-1">
                 {dirHandle ? '' : t.autoSaveDesc}
               </span>
@@ -479,18 +475,20 @@ export default function Home() {
               <span className={`flex items-center gap-3 font-bold text-black`}>
                 {dirHandle ? (
                   <>
-                    <Folder className="w-5 h-5" />
+                    <span className="text-xl">📁</span>
                     {/* @ts-ignore */}
                     Connected: {dirHandle.name}
                   </>
                 ) : (
                   <>
-                    <Folder className="w-5 h-5 opacity-100" />
+                    <span className="text-xl">📁</span>
                     <span className="opacity-100">{t.connectFolder}</span>
                   </>
                 )}
               </span>
-              {dirHandle ? <CheckCircle className="w-6 h-6 text-black" /> : <ChevronRight className="w-6 h-6 text-black" />}
+              <span className="ml-2">
+                {dirHandle ? "✅" : "👉"}
+              </span>
             </button>
           </div>
 
@@ -522,7 +520,7 @@ export default function Home() {
                 className="absolute top-4 right-4 p-2 rounded-full hover:bg-white/10 transition-colors z-20"
                 title="Clear selection"
               >
-                <X className="w-5 h-5 text-[--foreground]" />
+                <span className="text-xl">❌</span>
               </button>
             )}
 
@@ -534,10 +532,11 @@ export default function Home() {
                         ${isDragActive || isProcessing ? 'animate-bounce' : ''}
                         shadow-[4px_4px_0px_0px_rgba(0,0,0,0.3)]
                     `}>
+                    `}>
                     {isProcessing ? (
-                      <Loader2 className="w-12 h-12 text-white animate-spin" />
+                      <span className="text-4xl animate-spin block">⏳</span>
                     ) : (
-                      <Upload className="w-12 h-12 text-white" />
+                      <span className="text-4xl">📤</span>
                     )}
                   </div>
 
@@ -559,7 +558,7 @@ export default function Home() {
                   {mode === 'pdf2png' && pdfFile && (
                     <div className="w-full max-w-md space-y-4">
                       <div className="flex items-center justify-center gap-3 p-4 bg-[--secondary] border-[3px] border-black shadow-[4px_4px_0px_0px_#000]">
-                        <FileText className="w-8 h-8 text-black" />
+                        <span className="text-3xl">📄</span>
                         <div className="text-left">
                           <p className="font-bold text-black truncate max-w-[200px]">{pdfFile.name}</p>
                           <p className="text-xs text-black font-mono">{(pdfFile.size / 1024 / 1024).toFixed(2)} MB</p>
@@ -572,7 +571,7 @@ export default function Home() {
                           <p className="text-xs font-bold uppercase mb-2 text-gray-500">{t.previewTitle}</p>
                           {isPreviewLoading ? (
                             <div className="flex items-center justify-center py-8">
-                              <Loader2 className="w-6 h-6 animate-spin opacity-50" />
+                              <span className="text-2xl animate-spin block opacity-50">⏳</span>
                               <span className="ml-2 text-xs font-mono">{t.loadingPreviews}</span>
                             </div>
                           ) : (
@@ -609,7 +608,7 @@ export default function Home() {
                           onClick={(e) => { e.stopPropagation(); handleStartPdfConversion(); }}
                           className="w-full py-4 bg-[--primary] border-[3px] border-black text-white font-black text-lg uppercase tracking-wider shadow-[6px_6px_0px_0px_#000] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[4px_4px_0px_0px_#000] active:translate-x-[6px] active:translate-y-[6px] active:shadow-none transition-all flex items-center justify-center gap-2 hover-spring"
                         >
-                          <Play className="w-5 h-5" fill="currentColor" />
+                          <span className="font-emoji text-xl">▶️</span>
                           {t.startSeparation}
                         </button>
                       )}
@@ -622,7 +621,7 @@ export default function Home() {
 
           {uploadError && (
             <div className="flex items-center gap-2 text-[--error] bg-[rgba(239,68,68,0.1)] px-4 py-2 rounded-lg border border-[--error]">
-              <AlertCircle className="w-5 h-5" />
+              <span className="text-xl">⚠️</span>
               <span>{uploadError}</span>
             </div>
           )}
@@ -651,7 +650,7 @@ export default function Home() {
             <div className="w-full max-w-2xl space-y-4 animate-in fade-in slide-in-from-bottom-10 duration-700">
               <div className="flex items-center justify-between px-2">
                 <h2 className="text-xl font-bold flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-[--secondary]" />
+                  <span className="text-xl">📄</span>
                   {t.status}
                 </h2>
                 <div className="flex items-center gap-4">
@@ -661,7 +660,7 @@ export default function Home() {
                       disabled={isProcessing}
                       className="flex items-center gap-2 px-4 py-2 bg-white border-[2px] border-black text-black text-sm font-bold shadow-[3px_3px_0px_0px_#000] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0px_0px_#000] active:shadow-none active:translate-x-[3px] active:translate-y-[3px] transition-all"
                     >
-                      <Download className="w-4 h-4" />
+                      💾
                       {t.downloadZip}
                     </button>
                   )}
@@ -679,7 +678,7 @@ export default function Home() {
                   >
                     <div className="flex items-center gap-4">
                       <div className="w-10 h-10 rounded-lg bg-[rgba(255,255,255,0.1)] flex items-center justify-center">
-                        <ImageIcon className="w-5 h-5 opacity-70 group-hover:opacity-100 transition-opacity" />
+                        <span className="text-xl opacity-70 group-hover:opacity-100 transition-opacity">🖼️</span>
                       </div>
                       <div>
                         <p className="font-medium">Page {page.pageNumber}</p>
@@ -688,9 +687,9 @@ export default function Home() {
                     </div>
 
                     <div>
-                      {page.status === 'completed' && <CheckCircle className="w-6 h-6 text-[--success] animate-in zoom-in" />}
-                      {page.status === 'error' && <AlertCircle className="w-6 h-6 text-[--error]" />}
-                      {(page.status === 'processing' || page.status === 'saving') && <Loader2 className="w-5 h-5 animate-spin text-black" />}
+                      {page.status === 'completed' && <span className="text-2xl animate-in zoom-in">✅</span>}
+                      {page.status === 'error' && <span className="text-xl">❌</span>}
+                      {(page.status === 'processing' || page.status === 'saving') && <span className="text-xl animate-spin block">⏳</span>}
                       {page.status === 'pending' && <div className="w-3 h-3 rounded-full bg-gray-300 border border-black" />}
                     </div>
                   </div>
@@ -705,7 +704,7 @@ export default function Home() {
               <div className="flex items-center justify-between px-2">
                 <h2 className="text-xl font-bold">Selected Images ({imageFiles.length})</h2>
                 <p className="text-xs opacity-50 flex items-center gap-1">
-                  <GripVertical className="w-3 h-3" />
+                  <span className="text-lg">⠿</span>
                   Drag to reorder
                 </p>
               </div>
@@ -732,7 +731,7 @@ export default function Home() {
                       }}
                       className="aspect-square bg-white border-[3px] border-black shadow-[4px_4px_0px_0px_#000] flex flex-col items-center justify-center cursor-pointer transition-all hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_0px_#000] group animate-pop"
                     >
-                      <Upload className="w-8 h-8 text-black opacity-50 group-hover:opacity-100 transition-opacity" />
+                      <span className="text-3xl opacity-50 group-hover:opacity-100 transition-opacity">➕</span>
                       <span className="text-xs font-bold mt-2 text-black opacity-50 group-hover:opacity-100">{t.addMore}</span>
                     </div>
                   </div>
