@@ -1,413 +1,381 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { loadPDF, renderPageToBlob, imagesToPDF } from '@/lib/pdf-processor';
 import {
-  Upload, FileText, CheckCircle, Loader2, AlertCircle,
-  Image as ImageIcon, Folder, ArrowRight, Layers, Sparkles,
-  Download, X, File
+  Layout, Images, FileText, CheckCircle, ArrowRight, Download, Github,
+  UploadCloud, FileType, FileInput, Cog
 } from 'lucide-react';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 
-declare global {
-  interface Window {
-    showDirectoryPicker: () => Promise<FileSystemDirectoryHandle>;
-  }
+// --- Types ---
+type ConversionMode = 'PDF_TO_PNG' | 'PNG_TO_PDF';
+type ProcessStatus = 'IDLE' | 'PROCESSING' | 'COMPLETED' | 'ERROR';
+
+interface ProcessedFile {
+  name: string;
+  url: string;
+  blob?: Blob;
 }
 
-interface ProcessedPage {
-  pageNumber: number;
-  status: 'pending' | 'processing' | 'saving' | 'completed' | 'error';
-  path?: string;
-  error?: string;
-  blobUrl?: string;
-}
+// --- Components ---
+
+const Button = ({ children, variant = 'primary', className = '', ...props }: any) => {
+  const baseStyles = "font-bold border-2 border-black px-6 py-2 transition-all active:translate-y-1 active:shadow-none flex items-center gap-2";
+  const variants = {
+    primary: "bg-primary text-white shadow-neo hover:-translate-y-1 hover:shadow-neo-lg",
+    secondary: "bg-white text-black shadow-neo-sm hover:bg-gray-50"
+  };
+
+  return (
+    <button className={`${baseStyles} ${variants[variant as keyof typeof variants]} ${className}`} {...props}>
+      {children}
+    </button>
+  );
+};
+
+const Card = ({ title, children, className = '' }: any) => (
+  <div className={`bg-white border-2 border-black shadow-neo p-0 overflow-hidden ${className}`}>
+    <div className="border-b-2 border-black bg-gray-50 px-4 py-2 flex items-center justify-between">
+      <span className="font-bold uppercase tracking-wider text-sm">{title}</span>
+      <div className="flex gap-1">
+        <div className="w-2 h-2 rounded-full border border-black bg-red-400"></div>
+        <div className="w-2 h-2 rounded-full border border-black bg-yellow-400"></div>
+      </div>
+    </div>
+    <div className="p-6">
+      {children}
+    </div>
+  </div>
+);
+
+const Pipeline = ({ status }: { status: ProcessStatus }) => {
+  const isProcessing = status === 'PROCESSING';
+  const isCompleted = status === 'COMPLETED';
+
+  const steps = [
+    { label: 'Input', icon: FileInput, active: true },
+    { label: 'Engine', icon: Cog, active: isProcessing || isCompleted, animate: isProcessing },
+    { label: 'Result', icon: Download, active: isCompleted },
+  ];
+
+  return (
+    <div className="w-full py-8">
+      <div className="flex items-center justify-between max-w-2xl mx-auto relative">
+        <div className="absolute top-1/2 left-0 w-full h-1 bg-gray-300 -z-10 transform -translate-y-1/2"></div>
+        <div
+          className="absolute top-1/2 left-0 h-1 bg-black -z-10 transform -translate-y-1/2 transition-all duration-700 ease-in-out"
+          style={{ width: isCompleted ? '100%' : isProcessing ? '50%' : '0%' }}
+        ></div>
+
+        {steps.map((step, idx) => (
+          <div key={idx} className="flex flex-col items-center bg-transparent">
+            <div className={`
+                w-16 h-16 rounded-full border-2 border-black flex items-center justify-center z-10 transition-all duration-300
+                ${step.active ? 'bg-primary text-white shadow-neo' : 'bg-white text-gray-400'}
+            `}>
+              <step.icon className={`w-8 h-8 ${step.animate ? 'animate-spin' : ''}`} />
+            </div>
+            <span className={`mt-2 font-bold bg-white px-2 border border-black ${step.active ? 'text-black' : 'text-gray-400'}`}>
+              {step.label}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// --- Main Page ---
 
 export default function Home() {
-  const [mode, setMode] = useState<'pdf2png' | 'png2pdf'>('pdf2png');
-  const [pdfFile, setPdfFile] = useState<File | null>(null);
-  const [imageFiles, setImageFiles] = useState<File[]>([]);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [pages, setPages] = useState<ProcessedPage[]>([]);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const [dirHandle, setDirHandle] = useState<FileSystemDirectoryHandle | null>(null);
+  const [mode, setMode] = useState<ConversionMode>('PDF_TO_PNG');
+  const [status, setStatus] = useState<ProcessStatus>('IDLE');
+  const [currentProgress, setCurrentProgress] = useState(0);
+  const [generatedFiles, setGeneratedFiles] = useState<ProcessedFile[]>([]);
+
+  // Clean up ObjectURLs
+  useEffect(() => {
+    return () => {
+      generatedFiles.forEach(f => URL.revokeObjectURL(f.url));
+    };
+  }, [generatedFiles]);
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) return;
 
-    if (mode === 'pdf2png') {
-      const selectedFile = acceptedFiles[0];
-      if (selectedFile.type !== 'application/pdf') {
-        setUploadError('Please upload a valid PDF file.');
-        return;
-      }
+    setStatus('PROCESSING');
+    setCurrentProgress(0);
+    setGeneratedFiles([]);
 
-      setPdfFile(selectedFile);
-      setUploadError(null);
-      setPages([]);
-      setIsProcessing(true);
+    try {
+      if (mode === 'PDF_TO_PNG') {
+        const file = acceptedFiles[0];
+        if (file.type !== 'application/pdf') throw new Error('Invalid file type');
 
-      try {
-        const pdf = await loadPDF(selectedFile);
+        const pdf = await loadPDF(file);
         const numPages = pdf.numPages;
-
-        const initialPages: ProcessedPage[] = Array.from({ length: numPages }, (_, i) => ({
-          pageNumber: i + 1,
-          status: 'pending'
-        }));
-        setPages(initialPages);
+        const newFiles: ProcessedFile[] = [];
 
         for (let i = 1; i <= numPages; i++) {
-          await processPage(pdf, i, selectedFile.name);
+          const blob = await renderPageToBlob(pdf, i);
+          if (blob) {
+            newFiles.push({
+              name: `${file.name.replace('.pdf', '')}_page_${i}.png`,
+              url: URL.createObjectURL(blob),
+              blob
+            });
+          }
+          setCurrentProgress((i / numPages) * 100);
         }
-      } catch (err) {
-        console.error(err);
-        setUploadError('Failed to load PDF. Please try again.');
-      } finally {
-        setIsProcessing(false);
+        setGeneratedFiles(newFiles);
+        setStatus('COMPLETED');
+
+      } else { // PNG_TO_PDF
+        const validImages = acceptedFiles.filter(f => f.type.startsWith('image/'));
+        if (validImages.length === 0) throw new Error('No valid images');
+
+        // Simulate progress
+        const interval = setInterval(() => {
+          setCurrentProgress(prev => Math.min(prev + 10, 90));
+        }, 200);
+
+        const pdfBlob = await imagesToPDF(validImages);
+        clearInterval(interval);
+        setCurrentProgress(100);
+
+        setGeneratedFiles([{
+          name: 'merged_images.pdf',
+          url: URL.createObjectURL(pdfBlob),
+          blob: pdfBlob
+        }]);
+        setStatus('COMPLETED');
       }
-    } else {
-      const validImages = acceptedFiles.filter(f => f.type.startsWith('image/'));
-      if (validImages.length === 0) {
-        setUploadError('Please upload valid image files (PNG, JPG, etc).');
-        return;
-      }
-      setImageFiles(prev => [...prev, ...validImages]);
-      setUploadError(null);
-    }
-  }, [mode, dirHandle]);
-
-  const processPage = async (pdf: PDFDocumentProxy, pageNumber: number, originalFilename: string) => {
-    try {
-      updatePageStatus(pageNumber, 'processing');
-      const blob = await renderPageToBlob(pdf, pageNumber);
-      if (!blob) throw new Error('Failed to render page');
-      updatePageStatus(pageNumber, 'saving');
-
-      const baseName = originalFilename.replace(/\.pdf$/i, '');
-      const filename = `${baseName}_page_${pageNumber}.png`;
-
-      if (dirHandle) {
-        try {
-          // @ts-ignore
-          const fileHandle = await dirHandle.getFileHandle(filename, { create: true });
-          // @ts-ignore
-          const writable = await fileHandle.createWritable();
-          await writable.write(blob);
-          await writable.close();
-          updatePageStatus(pageNumber, 'completed', filename);
-        } catch (err: any) {
-          console.error('File System API Error:', err);
-          throw new Error('Failed to write to selected folder: ' + err.message);
-        }
-      } else {
-        // Create Object URL for manual download
-        const url = URL.createObjectURL(blob);
-        updatePageStatus(pageNumber, 'completed', filename, undefined, url);
-      }
-
-    } catch (err: any) {
-      console.error(`Error processing page ${pageNumber}:`, err);
-      updatePageStatus(pageNumber, 'error', undefined, err.message || 'Unknown error');
-    }
-  };
-
-  const updatePageStatus = (
-    pageNumber: number,
-    status: ProcessedPage['status'],
-    path?: string,
-    error?: string,
-    blobUrl?: string
-  ) => {
-    setPages(prev => prev.map(p =>
-      p.pageNumber === pageNumber ? { ...p, status, path, error, blobUrl } : p
-    ));
-  };
-
-  const handleSelectFolder = async () => {
-    try {
-      // @ts-ignore
-      const handle = await window.showDirectoryPicker();
-      setDirHandle(handle);
     } catch (err) {
-      console.log('Folder selection cancelled', err);
+      console.error(err);
+      setStatus('ERROR');
+      alert('Error processing files. See console.');
     }
-  };
-
-  const handleConvertImagesToPdf = async () => {
-    if (imageFiles.length === 0) return;
-    setIsProcessing(true);
-    setUploadError(null);
-
-    try {
-      const pdfBlob = await imagesToPDF(imageFiles);
-      const filename = 'converted.pdf';
-
-      if (dirHandle) {
-        // @ts-ignore
-        const fileHandle = await dirHandle.getFileHandle(filename, { create: true });
-        // @ts-ignore
-        const writable = await fileHandle.createWritable();
-        await writable.write(pdfBlob);
-        await writable.close();
-        alert(`Saved ${filename} to folder!`);
-      } else {
-        const url = URL.createObjectURL(pdfBlob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        a.click();
-        URL.revokeObjectURL(url);
-      }
-    } catch (err: any) {
-      setUploadError('Failed to generate PDF: ' + err.message);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
+  }, [mode]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    accept: mode === 'pdf2png' ? { 'application/pdf': ['.pdf'] } : { 'image/*': ['.png', '.jpg', '.jpeg'] },
-    multiple: mode === 'png2pdf',
-    disabled: isProcessing
+    accept: mode === 'PDF_TO_PNG'
+      ? { 'application/pdf': ['.pdf'] }
+      : { 'image/*': ['.png', '.jpg', '.jpeg', '.webp'] },
+    multiple: mode === 'PNG_TO_PDF',
+    disabled: status === 'PROCESSING'
   });
 
-  const reset = () => {
-    setPdfFile(null);
-    setImageFiles([]);
-    setPages([]);
-    setUploadError(null);
+  const handleDownload = (file: ProcessedFile) => {
+    const a = document.createElement('a');
+    a.href = file.url;
+    a.download = file.name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   };
 
-  // --- Render Sections ---
-
-  const renderHero = () => (
-    <div className="flex flex-col items-center justify-center text-center space-y-8 max-w-2xl mx-auto mt-20 p-6">
-      <div className="space-y-4">
-        <h1 className="text-5xl md:text-7xl font-bold tracking-tight text-[--foreground]">
-          Parse<span className="text-[--primary]">PDF</span>
-        </h1>
-        <p className="text-xl text-[--muted] max-w-lg mx-auto leading-relaxed">
-          The modern, intelligent way to convert documents. <br />
-          Secure, fast, and local.
-        </p>
-      </div>
-
-      <div className="flex bg-[--secondary] p-1 rounded-lg border border-[--border]">
-        <button
-          onClick={() => { setMode('pdf2png'); reset(); }}
-          className={`px-6 py-2 rounded-md text-sm font-medium transition-all ${mode === 'pdf2png' ? 'bg-white shadow text-[--primary]' : 'text-[--muted] hover:text-[--foreground]'
-            }`}
-        >
-          PDF to PNG
-        </button>
-        <button
-          onClick={() => { setMode('png2pdf'); reset(); }}
-          className={`px-6 py-2 rounded-md text-sm font-medium transition-all ${mode === 'png2pdf' ? 'bg-white shadow text-[--primary]' : 'text-[--muted] hover:text-[--foreground]'
-            }`}
-        >
-          PNG to PDF
-        </button>
-      </div>
-
-      <div
-        {...getRootProps()}
-        className={`
-          w-full max-w-lg min-h-[240px] flex flex-col items-center justify-center 
-          rounded-2xl border-2 border-dashed cursor-pointer transition-all duration-300
-          ${isDragActive
-            ? 'border-[--primary] bg-[--primary-light]/10 scale-[1.02]'
-            : 'border-[--border] bg-white hover:border-[--primary]/50 hover:bg-[--secondary]/50'
-          }
-        `}
-      >
-        <input {...getInputProps()} />
-        <div className="p-4 rounded-full bg-[--secondary] mb-4">
-          <Upload className={`w-8 h-8 text-[--muted] ${isDragActive ? 'text-[--primary]' : ''}`} />
-        </div>
-        <p className="text-lg font-semibold text-[--foreground]">
-          {isDragActive ? 'Drop file here' : 'Click or Drag to Upload'}
-        </p>
-        <p className="text-sm text-[--muted] mt-2">
-          {mode === 'pdf2png' ? 'Supports PDF files' : 'Supports PNG, JPG'}
-        </p>
-      </div>
-
-      {/* Optional Folder Connect */}
-      <button
-        onClick={handleSelectFolder}
-        className="flex items-center gap-2 text-sm text-[--muted] hover:text-[--primary] transition-colors"
-      >
-        <Folder className="w-4 h-4" />
-        {dirHandle ? `Saving to: ${dirHandle.name}` : 'Set auto-save folder (Optional)'}
-        {dirHandle && <CheckCircle className="w-3 h-3 text-[--success]" />}
-      </button>
-
-      {uploadError && (
-        <div className="flex items-center gap-2 text-[--error] bg-red-50 px-4 py-2 rounded-lg text-sm mt-4">
-          <AlertCircle className="w-4 h-4" />
-          {uploadError}
-        </div>
-      )}
-    </div>
-  );
-
-  const renderPipeline = () => (
-    <div className="w-full max-w-7xl mx-auto px-4 py-12 flex flex-col gap-8 animate-fade-in-up">
-
-      {/* Header / Nav */}
-      <div className="flex items-center justify-between mb-8">
-        <h2 className="text-2xl font-bold flex items-center gap-2 select-none cursor-pointer" onClick={reset}>
-          Parse<span className="text-[--primary]">PDF</span> <span className="text-[--muted] font-normal text-lg">/ Processor</span>
-        </h2>
-        <button onClick={reset} className="p-2 hover:bg-[--secondary] rounded-full transition-colors">
-          <X className="w-5 h-5 text-[--muted]" />
-        </button>
-      </div>
-
-      {/* Main Pipeline Visualization */}
-      <div className="flex flex-col lg:flex-row items-stretch gap-0 border border-[--border] rounded-3xl overflow-hidden glass-panel">
-
-        {/* Source Column */}
-        <div className="flex-1 bg-[--secondary]/30 p-8 flex flex-col items-center justify-center border-b lg:border-b-0 lg:border-r border-[--border] min-h-[300px]">
-          <div className="text-xs font-bold tracking-widest text-[--muted] uppercase mb-8">Input Source</div>
-          <div className="relative group">
-            <div className="w-32 h-40 bg-white border border-[--border] rounded-xl shadow-sm flex flex-col items-center justify-center p-4 transition-all group-hover:shadow-md group-hover:-translate-y-1">
-              {mode === 'pdf2png' ? <FileText className="w-12 h-12 text-[--primary] mb-2" /> : <ImageIcon className="w-12 h-12 text-[--primary] mb-2" />}
-              <div className="text-xs text-center font-medium text-[--foreground] truncate w-full">
-                {pdfFile ? pdfFile.name : `${imageFiles.length} Images`}
-              </div>
-              <div className="text-[10px] text-[--muted] mt-1">
-                {mode === 'pdf2png' ? (filesize(pdfFile?.size || 0)) : ''}
-              </div>
-            </div>
-            {/* Connection Dot */}
-            <div className="hidden lg:block absolute -right-12 top-1/2 w-4 h-4 bg-[--primary] rounded-full z-10 translate-x-1/2 ring-4 ring-white"></div>
-          </div>
-        </div>
-
-        {/* Processing Node (Center) */}
-        <div className="relative flex-none w-full lg:w-48 bg-white flex flex-col items-center justify-center py-8 z-0">
-          {/* Animated Connectors only visible on Desktop for horizontal flow */}
-          <div className="absolute top-1/2 left-0 w-full h-0.5 bg-[--border] hidden lg:block overflow-hidden">
-            {isProcessing && <div className="absolute inset-0 bg-[--primary] animate-[flow-animation_1s_infinite_linear]" />}
-          </div>
-
-          <div className="z-10 w-20 h-20 bg-white border-2 border-[--primary] rounded-2xl flex items-center justify-center shadow-lg relative">
-            {isProcessing && (
-              <div className="absolute inset-0 border-2 border-[--primary] rounded-2xl animate-ping opacity-20" />
-            )}
-            <Sparkles className={`w-8 h-8 text-[--primary] ${isProcessing ? 'animate-spin-slow' : ''}`} />
-          </div>
-          <div className="mt-4 text-center z-10 bg-white px-2">
-            <div className="font-semibold text-sm">Engine Core</div>
-            <div className="text-xs text-[--muted]">
-              {isProcessing ? 'Processing chunks...' : 'Idle'}
-            </div>
-          </div>
-        </div>
-
-        {/* Output Column */}
-        <div className="flex-[2] bg-[--secondary]/30 p-8 flex flex-col border-t lg:border-t-0 lg:border-l border-[--border]">
-          <div className="flex items-center justify-between mb-6">
-            <div className="text-xs font-bold tracking-widest text-[--muted] uppercase">Output Result</div>
-            {pages.length > 0 && <span className="text-xs font-medium bg-white px-2 py-1 rounded border border-[--border]">{pages.filter(p => p.status === 'completed').length} / {pages.length}</span>}
-          </div>
-
-          <div className="flex-1 min-h-[300px] max-h-[600px] overflow-y-auto custom-scrollbar p-2 -m-2">
-            {pages.length === 0 && !isProcessing && (
-              <div className="h-full flex items-center justify-center text-[--muted] text-sm">
-                Waiting for input...
-              </div>
-            )}
-
-            {mode === 'pdf2png' && (
-              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
-                {pages.map((page) => (
-                  <div
-                    key={page.pageNumber}
-                    className={`group relative bg-white border border-[--border] rounded-lg p-3 aspect-[3/4] flex flex-col items-center justify-center shadow-sm transition-all hover:shadow-md ${page.blobUrl ? 'cursor-pointer hover:border-[--primary]' : ''}`}
-                    onClick={() => {
-                      if (page.blobUrl && page.path) {
-                        const a = document.createElement('a');
-                        a.href = page.blobUrl;
-                        a.download = page.path;
-                        a.click();
-                      }
-                    }}
-                  >
-                    {page.status === 'completed' ? (
-                      <div className="w-full h-full flex flex-col items-center justify-center gap-2">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${page.blobUrl ? 'bg-[--primary-light]/20 text-[--primary] group-hover:scale-110' : 'bg-green-50 text-green-500'}`}>
-                          {page.blobUrl ? <Download className="w-5 h-5" /> : <CheckCircle className="w-5 h-5" />}
-                        </div>
-                        <span className="text-xs font-medium">Page {page.pageNumber}</span>
-                        {page.blobUrl && <span className="text-[10px] text-[--primary] opacity-0 group-hover:opacity-100 transition-opacity font-medium">Click to Download</span>}
-                        {!page.blobUrl && <span className="text-[10px] text-[--success] opacity-0 group-hover:opacity-100 transition-opacity">Auto-Saved</span>}
-                      </div>
-                    ) : page.status === 'error' ? (
-                      <div className="text-[--error] flex flex-col items-center text-center p-2">
-                        <AlertCircle className="w-6 h-6 mb-2" />
-                        <span className="text-[10px] leading-tight">{page.error || 'Error'}</span>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col items-center gap-2">
-                        <Loader2 className="w-6 h-6 animate-spin text-[--primary]" />
-                        <span className="text-xs text-[--muted] capitalize">{page.status}...</span>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* PNG to PDF Output placeholder */}
-            {mode === 'png2pdf' && isProcessing && (
-              <div className="flex flex-col items-center justify-center h-full gap-4">
-                <Loader2 className="w-10 h-10 animate-spin text-[--primary]" />
-                <p className="text-sm font-medium">Merging images...</p>
-              </div>
-            )}
-
-            {mode === 'png2pdf' && !isProcessing && imageFiles.length > 0 && (
-              <div className="flex flex-col items-center justify-center h-full">
-                <div className="p-6 bg-green-50 rounded-full mb-4 ring-8 ring-green-100">
-                  <CheckCircle className="w-10 h-10 text-green-600" />
-                </div>
-                <p className="font-medium text-lg mb-4">Ready to Merge</p>
-                <button
-                  onClick={handleConvertImagesToPdf}
-                  className="px-6 py-3 bg-[--primary] text-white rounded-xl font-medium shadow-lg hover:bg-[--primary-hover] transition-all"
-                >
-                  Downoad PDF
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
   return (
-    <main className="min-h-screen w-full relative">
-      {/* Background Grid is handled in CSS on body */}
+    <div className="min-h-screen font-sans pb-20">
+      {/* Navbar */}
+      <nav className="border-b-2 border-black bg-white py-4 px-6 mb-8 shadow-sm">
+        <div className="max-w-7xl mx-auto flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <div className="bg-primary text-white p-1 border-2 border-black shadow-neo-sm">
+              <Layout size={24} />
+            </div>
+            <span className="text-2xl font-bold tracking-tight">ParsePDF</span>
+          </div>
+          <div className="flex gap-4">
+            <a href="https://github.com/daconio/PDF2PNG" target="_blank" rel="noreferrer" className="flex items-center gap-2 font-bold hover:underline">
+              <Github size={20} /> GitHub
+            </a>
+            <div className="hidden md:flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-green-500 border border-black"></span>
+              <span className="text-sm font-bold">Client-Side Only</span>
+            </div>
+          </div>
+        </div>
+      </nav>
 
-      <div className="relative z-10 w-full">
-        {(pdfFile || imageFiles.length > 0) ? renderPipeline() : renderHero()}
-      </div>
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
-    </main>
+        {/* Hero Section */}
+        <div className="relative mb-16 mt-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+            <div className="space-y-6 z-10">
+              <div className="inline-block bg-[#FFD700] border-2 border-black px-3 py-1 font-bold text-sm transform -rotate-1 shadow-neo-sm">
+                Local Processing • No Uploads
+              </div>
+              <h1 className="text-5xl md:text-7xl font-extrabold leading-none tracking-tight text-gray-900">
+                Master Your Documents with <span className="text-primary">Privacy</span>
+              </h1>
+              <p className="text-xl text-gray-700 font-medium max-w-lg leading-relaxed">
+                Convert PDFs to high-quality images or merge photos into documents.
+                Everything happens in your browser—your data never leaves your device.
+              </p>
+
+              <div className="flex flex-wrap gap-4 pt-4">
+                <Button
+                  onClick={() => { setMode('PDF_TO_PNG'); setStatus('IDLE'); setGeneratedFiles([]); }}
+                  variant={mode === 'PDF_TO_PNG' ? 'primary' : 'secondary'}
+                >
+                  <FileText className="w-5 h-5" /> PDF to PNG
+                </Button>
+                <Button
+                  onClick={() => { setMode('PNG_TO_PDF'); setStatus('IDLE'); setGeneratedFiles([]); }}
+                  variant={mode === 'PNG_TO_PDF' ? 'primary' : 'secondary'}
+                >
+                  <Images className="w-5 h-5" /> PNG to PDF
+                </Button>
+              </div>
+            </div>
+
+            {/* Visual Decoration */}
+            <div className="relative h-[300px] md:h-[400px] w-full border-2 border-black bg-white shadow-neo-lg overflow-hidden hidden md:block">
+              <div className="absolute inset-0 bg-grid-pattern opacity-50"></div>
+              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-3/4 text-center">
+                <div className="bg-white border-2 border-black p-6 shadow-neo mb-6">
+                  <div className="flex justify-between items-center mb-4">
+                    <div className="flex gap-2">
+                      <div className="w-3 h-3 rounded-full bg-red-400 border border-black"></div>
+                      <div className="w-3 h-3 rounded-full bg-yellow-400 border border-black"></div>
+                      <div className="w-3 h-3 rounded-full bg-green-400 border border-black"></div>
+                    </div>
+                    <div className="font-mono text-xs font-bold">PROCESSOR_V1</div>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="h-4 bg-gray-100 w-full animate-pulse"></div>
+                    <div className="h-4 bg-gray-100 w-5/6 animate-pulse"></div>
+                  </div>
+                </div>
+                <div className="flex justify-center gap-4">
+                  <span className="animate-bounce delay-100 bg-blue-100 border border-black p-2 rounded shadow-neo-sm">📄</span>
+                  <span className="animate-bounce delay-200 bg-pink-100 border border-black p-2 rounded shadow-neo-sm">🔄</span>
+                  <span className="animate-bounce delay-300 bg-green-100 border border-black p-2 rounded shadow-neo-sm">🖼️</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Feature/Workspace Area */}
+        <section className="mb-20">
+          <div className="flex items-center gap-4 mb-8">
+            <h2 className="text-3xl font-bold bg-white inline-block border-2 border-black px-4 py-2 shadow-neo">
+              Workspace
+            </h2>
+            <div className="h-0.5 flex-grow bg-black"></div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Main Input Area */}
+            <div className="lg:col-span-2">
+              <Card title="Input Source">
+                {(status === 'IDLE' || status === 'ERROR') ? (
+                  <div
+                    {...getRootProps()}
+                    className={`
+                       border-4 border-dashed border-black bg-white p-12 text-center cursor-pointer transition-all
+                       hover:bg-gray-50 flex flex-col items-center justify-center h-64
+                       ${isDragActive ? 'bg-blue-50 border-primary' : ''}
+                     `}
+                  >
+                    <input {...getInputProps()} />
+                    <div className="bg-[#FFDEE2] p-4 rounded-full border-2 border-black mb-4 shadow-neo-sm">
+                      {isDragActive ? <FileType className="w-10 h-10 animate-bounce" /> : <UploadCloud className="w-10 h-10" />}
+                    </div>
+                    <h3 className="text-xl font-bold mb-2">
+                      {isDragActive ? 'Drop it like it\'s hot!' : 'Drag & Drop files here'}
+                    </h3>
+                    <p className="text-gray-500 max-w-sm mx-auto font-medium">
+                      {mode === 'PDF_TO_PNG'
+                        ? 'Upload a single PDF to extract pages as images.'
+                        : 'Upload multiple images to merge into a single PDF.'}
+                    </p>
+                    <span className="mt-4 inline-block bg-black text-white px-3 py-1 text-sm font-bold shadow-neo-sm transform hover:-translate-y-0.5 transition-transform">
+                      BROWSE FILES
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-64 border-4 border-dotted border-gray-300 bg-gray-50">
+                    <div className="text-center w-full max-w-xs">
+                      <div className="text-4xl mb-4 animate-spin text-center w-full flex justify-center">⚙️</div>
+                      <h3 className="text-xl font-bold">Processing Files...</h3>
+                      <p className="text-gray-500 font-medium">Crunching data locally.</p>
+                      <div className="mt-4 w-full h-4 bg-white border-2 border-black rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-primary transition-all duration-300"
+                          style={{ width: `${currentProgress}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </Card>
+
+              {/* Pipeline Visualization */}
+              <div className="mt-8">
+                <Pipeline status={status} />
+              </div>
+            </div>
+
+            {/* Output List */}
+            <div className="lg:col-span-1">
+              <Card title="Output Results" className="h-full min-h-[400px]">
+                {generatedFiles.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full text-gray-400 py-12">
+                    <Download size={48} className="mb-4 opacity-20" />
+                    <p className="text-center font-medium">Converted files will<br />appear here.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4 overflow-y-auto max-h-[500px] pr-2 custom-scrollbar">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="font-bold text-sm bg-yellow-200 px-2 border border-black">{generatedFiles.length} File(s) Ready</span>
+                      <span className="text-green-600 font-bold flex items-center gap-1 text-sm">
+                        <CheckCircle size={14} /> Done
+                      </span>
+                    </div>
+
+                    {generatedFiles.map((file, idx) => (
+                      <div key={idx} className="group flex items-center justify-between p-3 border-2 border-black bg-white hover:bg-gray-50 transition-colors shadow-neo-sm">
+                        <div className="flex items-center gap-3 overflow-hidden">
+                          <div className="w-10 h-10 bg-gray-100 border border-black flex items-center justify-center flex-shrink-0 font-mono text-xl">
+                            {mode === 'PDF_TO_PNG' ? '🖼️' : '📄'}
+                          </div>
+                          <div className="flex-col overflow-hidden">
+                            <p className="font-bold text-sm truncate w-32 md:w-24 lg:w-32" title={file.name}>{file.name}</p>
+                            <p className="text-xs text-gray-500 font-medium">Ready to save</p>
+                          </div>
+                        </div>
+                        <Button
+                          onClick={() => handleDownload(file)}
+                          className="!px-2 !py-2 !shadow-none hover:bg-gray-200"
+                          variant="secondary"
+                          title="Download"
+                        >
+                          <Download size={16} />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+            </div>
+          </div>
+        </section>
+
+      </main>
+
+      {/* Footer */}
+      <footer className="border-t-2 border-black bg-white py-12 mt-auto">
+        <div className="max-w-7xl mx-auto px-6 text-center">
+          <p className="font-bold text-xl mb-2">ParsePDF</p>
+          <p className="text-gray-600 font-medium">Built for privacy. Designed for speed.</p>
+        </div>
+      </footer>
+    </div>
   );
-}
-
-// Utility
-function filesize(bytes: number) {
-  if (bytes === 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 }
