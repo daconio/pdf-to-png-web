@@ -4,10 +4,13 @@ import { useState, useCallback, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { loadPDF, renderPageToBlob, imagesToPDF } from '@/lib/pdf-processor';
 import {
-  Layout, Images, FileText, CheckCircle, ArrowRight, Download, Github,
-  UploadCloud, FileType, FileInput, Cog
+  Layout, Images, FileText, CheckCircle, Download, Github,
+  UploadCloud, FileType
 } from 'lucide-react';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
+import { Button } from './components/Button';
+import { Card } from './components/Card';
+import { Pipeline } from './components/Pipeline';
 
 // --- Types ---
 type ConversionMode = 'PDF_TO_PNG' | 'PNG_TO_PDF';
@@ -18,74 +21,6 @@ interface ProcessedFile {
   url: string;
   blob?: Blob;
 }
-
-// --- Components ---
-
-const Button = ({ children, variant = 'primary', className = '', ...props }: any) => {
-  const baseStyles = "font-bold border-2 border-black px-6 py-2 transition-all active:translate-y-1 active:shadow-none flex items-center gap-2";
-  const variants = {
-    primary: "bg-primary text-white shadow-neo hover:-translate-y-1 hover:shadow-neo-lg",
-    secondary: "bg-white text-black shadow-neo-sm hover:bg-gray-50"
-  };
-
-  return (
-    <button className={`${baseStyles} ${variants[variant as keyof typeof variants]} ${className}`} {...props}>
-      {children}
-    </button>
-  );
-};
-
-const Card = ({ title, children, className = '' }: any) => (
-  <div className={`bg-white border-2 border-black shadow-neo p-0 overflow-hidden ${className}`}>
-    <div className="border-b-2 border-black bg-gray-50 px-4 py-2 flex items-center justify-between">
-      <span className="font-bold uppercase tracking-wider text-sm">{title}</span>
-      <div className="flex gap-1">
-        <div className="w-2 h-2 rounded-full border border-black bg-red-400"></div>
-        <div className="w-2 h-2 rounded-full border border-black bg-yellow-400"></div>
-      </div>
-    </div>
-    <div className="p-6">
-      {children}
-    </div>
-  </div>
-);
-
-const Pipeline = ({ status }: { status: ProcessStatus }) => {
-  const isProcessing = status === 'PROCESSING';
-  const isCompleted = status === 'COMPLETED';
-
-  const steps = [
-    { label: 'Input', icon: FileInput, active: true },
-    { label: 'Engine', icon: Cog, active: isProcessing || isCompleted, animate: isProcessing },
-    { label: 'Result', icon: Download, active: isCompleted },
-  ];
-
-  return (
-    <div className="w-full py-8">
-      <div className="flex items-center justify-between max-w-2xl mx-auto relative">
-        <div className="absolute top-1/2 left-0 w-full h-1 bg-gray-300 -z-10 transform -translate-y-1/2"></div>
-        <div
-          className="absolute top-1/2 left-0 h-1 bg-black -z-10 transform -translate-y-1/2 transition-all duration-700 ease-in-out"
-          style={{ width: isCompleted ? '100%' : isProcessing ? '50%' : '0%' }}
-        ></div>
-
-        {steps.map((step, idx) => (
-          <div key={idx} className="flex flex-col items-center bg-transparent">
-            <div className={`
-                w-16 h-16 rounded-full border-2 border-black flex items-center justify-center z-10 transition-all duration-300
-                ${step.active ? 'bg-primary text-white shadow-neo' : 'bg-white text-gray-400'}
-            `}>
-              <step.icon className={`w-8 h-8 ${step.animate ? 'animate-spin' : ''}`} />
-            </div>
-            <span className={`mt-2 font-bold bg-white px-2 border border-black ${step.active ? 'text-black' : 'text-gray-400'}`}>
-              {step.label}
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
 
 // --- Main Page ---
 
